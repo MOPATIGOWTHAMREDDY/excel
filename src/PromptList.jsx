@@ -8,6 +8,9 @@ function PromptList({ prompts, setSelectedPromptIndex, originalData, setFiltered
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState({ key: '_unit_id', direction: 'asc' });
 
+  // Unique Worker IDs
+  const uniqueWorkerIds = [...new Set(originalData.map(item => item.orig__worker_id))];
+
   // Count disagreements and add to each prompt
   const enhancedPrompts = prompts.map(prompt => ({
     ...prompt,
@@ -16,8 +19,8 @@ function PromptList({ prompts, setSelectedPromptIndex, originalData, setFiltered
 
   // Filter and sort logic
   const filteredPrompts = enhancedPrompts
-    .filter(prompt => 
-      prompt._unit_id?.toString().includes(searchID) &&
+    .filter(prompt =>
+      prompt.orig__worker_id?.toString().includes(searchID) &&
       (!disagreementFilter || prompt.disCount > 0)
     )
     .sort((a, b) => {
@@ -39,28 +42,12 @@ function PromptList({ prompts, setSelectedPromptIndex, originalData, setFiltered
 
   // Count disagreements in _a_a columns
   function countDisagreements(prompt) {
-  return Object.keys(prompt).reduce((count, key) => {
-    // Exclude QC and non-goal entries
-    const isDisagreement = key.endsWith('_a_a') && prompt[key] === 'dis';
-    const isQC = key.includes('is_pmpt_') || key.includes('_qc');
-    return isDisagreement && !isQC ? count + 1 : count;
-  }, 0);
-}
-
-Object.entries(prompt)
-  .filter(([key, val]) =>
-    key.endsWith('_a_a') &&
-    val === 'dis' &&
-    !key.includes('is_pmpt_') &&
-    !key.includes('_qc')
-  )
-  .map(([key]) => (
-    <span key={key} className="text-xs ...">
-      {key.replace('_a_a', '')}
-    </span>
-  ));
-
-  
+    return Object.keys(prompt).reduce((count, key) => {
+      const isDisagreement = key.endsWith('_a_a') && prompt[key] === 'dis';
+      const isQC = key.includes('is_pmpt_') || key.includes('_qc');
+      return isDisagreement && !isQC ? count + 1 : count;
+    }, 0);
+  }
 
   // Handle sort
   const requestSort = (key) => {
@@ -82,39 +69,74 @@ Object.entries(prompt)
   useEffect(() => {
     const timer = setTimeout(() => {
       handleSearch();
-    }, 500);
+    }, 300);
     return () => clearTimeout(timer);
   }, [searchID]);
 
   const handleSearch = () => {
     const filtered = originalData.filter((row) =>
-      row._unit_id?.toString().includes(searchID)
+      row.orig__worker_id?.toString().includes(searchID)
     );
     setFilteredPrompts(filtered);
-    setCurrentPage(1); // Reset to first page on new search
+    setCurrentPage(1);
   };
 
   return (
     <div className="space-y-4">
       {/* Search and Filter Bar */}
       <div className="flex flex-col md:flex-row gap-4 items-center bg-white p-4 rounded-lg shadow">
+        {/* Search Input with Autocomplete */}
         <div className="relative flex-grow w-full md:w-auto">
           <FiSearch className="absolute left-3 top-3 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by ID..."
+            placeholder="Search by Worker ID or select below..."
             value={searchID}
             onChange={(e) => setSearchID(e.target.value)}
             className="border border-gray-300 pl-10 pr-4 py-2 rounded-md w-full"
           />
           {searchID && (
-            <FiX 
-              className="absolute right-3 top-3 text-gray-400 cursor-pointer" 
+            <FiX
+              className="absolute right-3 top-3 text-gray-400 cursor-pointer"
               onClick={() => setSearchID('')}
             />
           )}
+
+          {/* Autocomplete Suggestions */}
+          {searchID && (
+            <div className="absolute bg-white border border-gray-200 mt-1 rounded-md shadow z-10 max-h-40 overflow-y-auto w-full">
+              {uniqueWorkerIds
+                .filter(id => id.toString().includes(searchID))
+                .map(id => (
+                  <div
+                    key={id}
+                    onClick={() => setSearchID(id.toString())}
+                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                  >
+                    {id}
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
 
+        {/* Dropdown Filter */}
+        <div className="w-full md:w-auto">
+          <select
+            value={searchID}
+            onChange={(e) => setSearchID(e.target.value)}
+            className="border border-gray-300 pl-4 pr-4 py-2 rounded-md w-full"
+          >
+            <option value="">Select Worker ID</option>
+            {uniqueWorkerIds.map(id => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Disagreement Filter */}
         <div className="flex gap-2 w-full md:w-auto">
           <button
             onClick={() => setDisagreementFilter(!disagreementFilter)}
@@ -157,12 +179,12 @@ Object.entries(prompt)
             key={key}
             onClick={() => requestSort(key)}
             className={`px-3 py-1 text-sm rounded-md whitespace-nowrap ${
-              sortConfig.key === key 
-                ? 'bg-indigo-100 text-indigo-700' 
+              sortConfig.key === key
+                ? 'bg-indigo-100 text-indigo-700'
                 : 'bg-gray-100 hover:bg-gray-200'
             }`}
           >
-            {key.replace('_', ' ')} 
+            {key.replace('_', ' ')}
             {sortConfig.key === key && (
               sortConfig.direction === 'asc' ? ' ↑' : ' ↓'
             )}
@@ -206,7 +228,7 @@ Object.entries(prompt)
         ) : (
           <div className="text-center py-8 bg-white rounded-lg shadow">
             <p className="text-gray-500">No prompts found matching your criteria</p>
-            <button 
+            <button
               onClick={resetFilters}
               className="mt-2 text-indigo-600 hover:underline"
             >

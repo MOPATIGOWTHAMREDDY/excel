@@ -1,6 +1,12 @@
-
 import React, { useState } from 'react';
-import { FiCheckCircle, FiAlertCircle, FiInfo, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import {
+  FiCheckCircle,
+  FiAlertCircle,
+  FiInfo,
+  FiChevronDown,
+  FiChevronRight,
+} from 'react-icons/fi';
+import PromptMetaAnswers from './PromptMetaAnswers';
 
 const metadataFields = [
   'is_pmpt_intentful_qc',
@@ -50,7 +56,9 @@ function PromptMetadataReview({ prompt }) {
     return (
       <div
         key={field}
-        className={`p-4 rounded-md border ${isDisagree ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'} space-y-2`}
+        className={`p-4 rounded-md border ${
+          isDisagree ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'
+        } space-y-2`}
       >
         <div className="flex justify-between items-start">
           <div>
@@ -144,8 +152,11 @@ function PromptMetadataReview({ prompt }) {
       </div>
 
       {isExpanded && (
-        <div className="p-4 space-y-4">
-          {metadataFields.map((field) => renderItem(field))}
+        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            {metadataFields.map((field) => renderItem(field))}
+          </div>
+          <PromptMetaAnswers prompt={prompt} />
         </div>
       )}
     </div>

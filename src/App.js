@@ -19,6 +19,7 @@ function App() {
           <UploadPage setData={setData} setFilteredPrompts={setFilteredPrompts} />
         )}
 
+  
         {data.length > 0 && selectedPromptIndex === null && (
           <PromptList
             prompts={filteredPrompts}
