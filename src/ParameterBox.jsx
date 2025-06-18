@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FiEdit, FiCheck, FiX, FiAlertCircle, FiInfo, FiCheckCircle, FiCircle } from 'react-icons/fi';
+import { FiEdit, FiCheck, FiX, FiAlertCircle, FiInfo, FiCheckCircle } from 'react-icons/fi';
+import { exportReviewed } from './export';
 
 function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
   const [revert, setRevert] = useState(param.status === 'disagree');
@@ -8,7 +9,7 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
   const [validationError, setValidationError] = useState('');
   const [isResolved, setIsResolved] = useState(param.resolved || false);
 
-  // Initialize state from param
+  // Sync with param updates
   useEffect(() => {
     setRevert(param.status === 'disagree');
     setComment(param.comment || '');
@@ -39,12 +40,18 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
       resolvedAt: new Date().toISOString()
     };
 
-    // Update local state
     setIsResolved(true);
     setIsEditing(false);
-    
-    // Notify parent component
-    onStatusChange(updatedParam);
+
+    // Save to prompt via param.onUpdate
+    if (typeof param.onUpdate === 'function') {
+      param.onUpdate(newStatus, comment.trim());
+    }
+
+    // Optional: inform parent
+    if (onStatusChange) {
+      onStatusChange(updatedParam);
+    }
   };
 
   const handleMarkResolved = () => {
@@ -54,7 +61,15 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
       resolvedAt: new Date().toISOString()
     };
     setIsResolved(true);
-    onStatusChange(updatedParam);
+
+    // Save resolved state to prompt
+    if (typeof param.onUpdate === 'function') {
+      param.onUpdate(param.status, param.comment || '');
+    }
+
+    if (onStatusChange) {
+      onStatusChange(updatedParam);
+    }
   };
 
   return (
@@ -66,14 +81,12 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
           : 'border-gray-200 bg-white'
     } ${validationError ? 'border-orange-300' : ''}`}>
       
-      {/* Resolved Badge */}
       {isResolved && (
         <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
           <FiCheckCircle size={16} />
         </div>
       )}
 
-      {/* Header */}
       <div className="flex justify-between items-start mb-2">
         <div>
           <h4 className="font-medium text-gray-800 flex items-center">
@@ -99,7 +112,6 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
         )}
       </div>
 
-      {/* Values Display */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
         <div className="bg-gray-50 p-2 rounded">
           <div className="text-xs text-gray-500 mb-1">Your Answer</div>
@@ -119,7 +131,6 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
         </div>
       </div>
 
-      {/* Editable Section */}
       {(!readonly && isEditing && !isResolved) && (
         <div className="mt-3 space-y-3">
           <div className="flex flex-col space-y-2">
@@ -192,7 +203,6 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
         </div>
       )}
 
-      {/* View Mode */}
       {(!isEditing || isResolved) && (
         <div className="mt-2 space-y-2">
           <div className="flex justify-between items-center">

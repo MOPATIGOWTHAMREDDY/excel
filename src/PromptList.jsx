@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FiSearch, FiFilter, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import * as XLSX from 'xlsx';
+import { exportReviewed } from './export';
 
-function PromptList({ prompts, setSelectedPromptIndex, originalData, setFilteredPrompts }) {
+function PromptList({ prompts, setSelectedPromptIndex, originalData, setFilteredPrompts, data }) {
   const [searchID, setSearchID] = useState('');
   const [disagreementFilter, setDisagreementFilter] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -9,6 +11,31 @@ function PromptList({ prompts, setSelectedPromptIndex, originalData, setFiltered
   const [sortConfig, setSortConfig] = useState({ key: '_unit_id', direction: 'asc' });
 
   // Unique Worker IDs
+  const [reviewedPrompts, setReviewedPrompts] = useState([]);
+
+// Call this when user navigates back from reviewing a prompt
+const updateReviewedPrompt = (updatedPrompt) => {
+  setReviewedPrompts((prev) => {
+    const existingIndex = prev.findIndex(p => p._unit_id === updatedPrompt._unit_id);
+    if (existingIndex !== -1) {
+      const updated = [...prev];
+      updated[existingIndex] = updatedPrompt;
+      return updated;
+    }
+    return [...prev, updatedPrompt];
+  });
+};
+
+  const handleDownloadExcel = () => {
+  const worksheet = XLSX.utils.json_to_sheet(data); // data includes user-reviewed info
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Reviewed Prompts');
+  XLSX.writeFile(workbook, 'Reviewed_Prompts.xlsx');
+
+  // Show alert or toast
+  alert('Answers saved and Excel downloaded!');
+};
+
   const uniqueWorkerIds = [...new Set(originalData.map(item => item.orig__worker_id))];
 
   // Count disagreements and add to each prompt
@@ -158,6 +185,12 @@ function PromptList({ prompts, setSelectedPromptIndex, originalData, setFiltered
           )}
         </div>
       </div>
+      <button
+  onClick={() => exportReviewed(window.prompts)}
+  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+>
+  Download Reviewed Excel
+</button>
 
       {/* Stats Bar */}
       <div className="flex flex-wrap gap-4 text-sm bg-white p-3 rounded-lg shadow">

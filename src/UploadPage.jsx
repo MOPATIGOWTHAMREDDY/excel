@@ -3,22 +3,30 @@ import * as XLSX from 'xlsx';
 
 function UploadPage({ setData, setFilteredPrompts }) {
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    const reader = new FileReader();
+  const file = e.target.files?.[0];
 
-    reader.onload = (evt) => {
-      const bstr = evt.target.result;
-      const workbook = XLSX.read(bstr, { type: 'binary' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+  if (!file || !(file instanceof Blob)) {
+    console.error("Invalid file:", file);
+    return;
+  }
 
-      setData(jsonData);
-      setFilteredPrompts(jsonData);
-    };
+  const reader = new FileReader();
 
-    reader.readAsBinaryString(file);
+  reader.onload = (evt) => {
+    const arrayBuffer = evt.target.result;
+    const data = new Uint8Array(arrayBuffer);
+    const workbook = XLSX.read(data, { type: 'array' });
+
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+    setData(jsonData);
+    setFilteredPrompts(jsonData);
   };
+
+  reader.readAsArrayBuffer(file); // ✅ modern & supported
+};
 
   return (
     <div className="flex flex-col items-center space-y-6">

@@ -3,7 +3,6 @@ import GoalReviewCard from './GoalReviewCard';
 import PromptMetadataReview from './PromptMetadataReview';
 import PromptMetaSummary from './PromptMetaSummary';
 
-
 function getGoals(prompt) {
   const excludedPatterns = [
     '_contains_',
@@ -12,7 +11,7 @@ function getGoals(prompt) {
     '_not_',
     '_objectively_',
     'ambiguous_unclear_qc',
-    'qc'
+    'qc',
   ];
 
   const goalKeys = Object.keys(prompt).filter(
@@ -23,7 +22,7 @@ function getGoals(prompt) {
 
   const goals = goalKeys.map((key) => {
     const goalNameParts = key.split('_');
-    const goalIndex = goalNameParts[1]; // Extract index for parameter lookup
+    const goalIndex = goalNameParts[1];
 
     const parameters = Object.entries(prompt)
       .filter(([paramKey]) =>
@@ -50,6 +49,7 @@ function getGoals(prompt) {
       name: key,
       description: prompt[key],
       parameters,
+      __promptRef: prompt,
     };
   });
 
@@ -58,6 +58,18 @@ function getGoals(prompt) {
 
 function PromptReview({ prompt, index, goBack, total, goTo }) {
   const goals = getGoals(prompt);
+
+  // ⬇️ Save all goal parameters into prompt.parameters for export + persistence
+  prompt.parameters = goals.flatMap(g => g.parameters);
+
+  const updateReviewedPrompt = (updatedPrompt) => {
+    const promptList = window.prompts || [];
+    const i = promptList.findIndex(p => p._unit_id === updatedPrompt._unit_id);
+    if (i !== -1) {
+      promptList[i] = updatedPrompt;
+      window.prompts = [...promptList]; // ✅ Trigger memory update
+    }
+  };
 
   return (
     <div>
@@ -87,15 +99,21 @@ function PromptReview({ prompt, index, goBack, total, goTo }) {
         <h2 className="text-xl font-bold mb-2">Prompt #{prompt._unit_id}</h2>
         <p className="mb-6 text-gray-700">{prompt.prompt}</p>
         <PromptMetaSummary prompt={prompt} />
-        <PromptMetadataReview prompt={prompt} />
-        
-<div className="space-y-6">
 
-  {goals.map((goal, idx) => (
-    <GoalReviewCard key={idx} goal={goal} />
-  ))}
-</div>
+        <PromptMetadataReview
+          prompt={prompt}
+          updateReviewedPrompt={updateReviewedPrompt}
+        />
 
+        <div className="space-y-6">
+          {goals.map((goal, idx) => (
+            <GoalReviewCard
+              key={idx}
+              goal={goal}
+              updateReviewedPrompt={updateReviewedPrompt}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

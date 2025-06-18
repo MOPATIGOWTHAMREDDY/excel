@@ -25,22 +25,73 @@ const metadataFields = [
   'pmpt_style_eval_qc',
 ];
 
-function PromptMetadataReview({ prompt }) {
+function PromptMetadataReview({ prompt, updateReviewedPrompt }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [decisions, setDecisions] = useState({});
+  const [showSaved, setShowSaved] = useState(false);
 
   const handleDecisionChange = (field, value) => {
-    setDecisions((prev) => ({
-      ...prev,
-      [field]: { ...(prev[field] || {}), decision: value, comment: '' },
-    }));
+    setDecisions((prev) => {
+      const updated = {
+        ...prev,
+        [field]: {
+          ...(prev[field] || {}),
+          decision: value,
+          comment: prev[field]?.comment || '',
+        },
+      };
+      prompt[`${field}_review_decision`] = value;
+      return updated;
+    });
   };
 
   const handleCommentChange = (field, value) => {
-    setDecisions((prev) => ({
-      ...prev,
-      [field]: { ...(prev[field] || {}), comment: value },
-    }));
+    setDecisions((prev) => {
+      const updated = {
+        ...prev,
+        [field]: {
+          ...(prev[field] || {}),
+          comment: value,
+        },
+      };
+      prompt[`${field}_review_comment`] = value;
+      return updated;
+    });
+  };
+
+  const handleSave = () => {
+    let valid = true;
+
+    for (const field of metadataFields) {
+      const annotatorDecision = prompt[`${field}_a_a`];
+      const isDisagree = annotatorDecision === 'dis';
+      const decision = decisions[field]?.decision || 'agree';
+      const comment = decisions[field]?.comment || '';
+
+      if (isDisagree && decision === 'revert' && comment.trim() === '') {
+        valid = false;
+        break;
+      }
+
+      prompt[`${field}_review_decision`] = decision;
+      prompt[`${field}_review_comment`] = comment;
+    }
+
+    if (!valid) {
+      alert('Please add a comment for all reverted metadata fields.');
+      return;
+    }
+
+    prompt.metadataReviewed = true;
+
+    if (prompt.metadataReviewed && prompt.goalsReviewed) {
+      prompt.reviewed = true;
+    }
+
+    updateReviewedPrompt?.(prompt); // ✅ Save to shared state
+
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 2000);
   };
 
   const renderItem = (field) => {
@@ -50,8 +101,8 @@ function PromptMetadataReview({ prompt }) {
     if (!annotatorDecision && !annotatorSuggestion) return null;
 
     const isDisagree = annotatorDecision === 'dis';
-    const decision = decisions[field]?.decision || 'agree';
-    const comment = decisions[field]?.comment || '';
+    const decision = decisions[field]?.decision || prompt[`${field}_review_decision`] || 'agree';
+    const comment = decisions[field]?.comment || prompt[`${field}_review_comment`] || '';
 
     return (
       <div
@@ -62,9 +113,7 @@ function PromptMetadataReview({ prompt }) {
       >
         <div className="flex justify-between items-start">
           <div>
-            <div className="font-semibold text-gray-800">
-              {field.replace(/_/g, ' ')}
-            </div>
+            <div className="font-semibold text-gray-800">{field.replace(/_/g, ' ')}</div>
             <div className="text-sm text-gray-600">
               Annotator decision:{' '}
               {isDisagree ? (
@@ -78,9 +127,7 @@ function PromptMetadataReview({ prompt }) {
             {annotatorSuggestion && (
               <div className="text-sm bg-gray-50 rounded px-3 py-2 mt-2">
                 <span className="text-gray-500 mr-1">Annotator’s suggestion:</span>
-                <span className="text-gray-800 font-medium">
-                  {annotatorSuggestion || '—'}
-                </span>
+                <span className="text-gray-800 font-medium">{annotatorSuggestion}</span>
               </div>
             )}
           </div>
@@ -136,7 +183,7 @@ function PromptMetadataReview({ prompt }) {
   };
 
   return (
-    <div className="border rounded-md bg-white shadow mb-6 overflow-hidden">
+    <div className="border rounded-md bg-white shadow mb-6 overflow-hidden relative">
       <div
         onClick={() => setIsExpanded(!isExpanded)}
         className="cursor-pointer px-4 py-3 bg-blue-100 flex items-center justify-between hover:bg-blue-200 transition"
@@ -155,6 +202,15 @@ function PromptMetadataReview({ prompt }) {
         <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             {metadataFields.map((field) => renderItem(field))}
+            <button
+              onClick={handleSave}
+              className="bg-blue-600 text-white px-4 py-2 rounded mt-2 hover:bg-blue-700"
+            >
+              Save
+            </button>
+            {showSaved && (
+              <div className="text-green-600 text-sm mt-2 font-medium">Saved successfully</div>
+            )}
           </div>
           <PromptMetaAnswers prompt={prompt} />
         </div>
