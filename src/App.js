@@ -4,6 +4,7 @@ import PromptList from './PromptList';
 import PromptReview from './PromptReview';
 import { ToastContainer } from 'react-toastify';
 import { exportReviewed } from './export'; // ✅ Import the export function
+import { downloadAllReviewedPrompts } from './exportAllReviewedPrompts';
 
 function App() {
   const [data, setData] = useState([]);

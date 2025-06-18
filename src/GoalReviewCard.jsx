@@ -21,27 +21,36 @@ function GoalReviewCard({ goal, isHighlighted, updateReviewedPrompt }) {
       ? Math.round((agreed.length / goal.parameters.length) * 100)
       : 0;
 
-  const handleParameterUpdate = (updatedParam) => {
-    const index = goal.parameters.findIndex(p => p.fullKey === updatedParam.fullKey);
-    if (index !== -1) {
-      goal.parameters[index] = updatedParam;
+const handleParameterUpdate = (updatedParam) => {
+  const index = goal.parameters.findIndex(p => p.fullKey === updatedParam.fullKey);
+  if (index !== -1) {
+    // Update the goal parameters
+    goal.parameters[index] = updatedParam;
+    
+    // IMPORTANT: Also update the original prompt parameters
+const prompt = goal.__promptRef;
+if (prompt && prompt.parameters) {
+  const originalParamIndex = prompt.parameters.findIndex(p => p.fullKey === updatedParam.fullKey);
+  if (originalParamIndex !== -1) {
+    prompt.parameters[originalParamIndex] = updatedParam;
+  }
+}
 
-      const allResolved = goal.parameters.every(p =>
-        ['agree', 'disagree'].includes(p.status)
-      );
+    const allResolved = goal.parameters.every(p =>
+      ['agree', 'disagree'].includes(p.status)
+    );
 
-      const prompt = goal.__promptRef;
-      if (allResolved) {
-        prompt.goalsReviewed = true;
-        if (prompt.metadataReviewed && prompt.goalsReviewed) {
-          prompt.reviewed = true;
-        }
-        updateReviewedPrompt?.(prompt);
+    if (allResolved) {
+      prompt.goalsReviewed = true;
+      if (prompt.metadataReviewed && prompt.goalsReviewed) {
+        prompt.reviewed = true;
       }
-
-      forceUpdate({});
+      updateReviewedPrompt?.(prompt);
     }
-  };
+
+    forceUpdate({});
+  }
+};
 
   return (
     <div className={`border rounded-lg overflow-hidden transition-all duration-200 ${

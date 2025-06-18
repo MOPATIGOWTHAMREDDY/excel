@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { FiEdit, FiCheck, FiX, FiAlertCircle, FiInfo, FiCheckCircle } from 'react-icons/fi';
-import { exportReviewed } from './export';
 
 function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
   const [revert, setRevert] = useState(param.status === 'disagree');
@@ -9,7 +8,6 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
   const [validationError, setValidationError] = useState('');
   const [isResolved, setIsResolved] = useState(param.resolved || false);
 
-  // Sync with param updates
   useEffect(() => {
     setRevert(param.status === 'disagree');
     setComment(param.comment || '');
@@ -31,7 +29,21 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
       return;
     }
 
-    const newStatus = revert ? 'disagree' : 'agree';
+    if (revert && !comment.trim()) {
+    setValidationError('Please provide a reason for reverting');
+    return;
+  }
+
+  const newStatus = revert ? 'disagree' : 'agree';
+  // DEBUG: Log what's being saved
+  console.log('Saving parameter:', {
+    name: param.name,
+    fullKey: param.fullKey,
+    status: newStatus,
+    comment: comment.trim(),
+    commentLength: comment.trim().length
+  });
+
     const updatedParam = {
       ...param,
       status: newStatus,
@@ -43,12 +55,10 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
     setIsResolved(true);
     setIsEditing(false);
 
-    // Save to prompt via param.onUpdate
     if (typeof param.onUpdate === 'function') {
-      param.onUpdate(newStatus, comment.trim());
+      param.onUpdate(updatedParam);
     }
 
-    // Optional: inform parent
     if (onStatusChange) {
       onStatusChange(updatedParam);
     }
@@ -62,9 +72,8 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
     };
     setIsResolved(true);
 
-    // Save resolved state to prompt
     if (typeof param.onUpdate === 'function') {
-      param.onUpdate(param.status, param.comment || '');
+      param.onUpdate(updatedParam);
     }
 
     if (onStatusChange) {
@@ -73,7 +82,7 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
   };
 
   return (
-    <div className={`border p-4 rounded-md transition-all duration-200 relative ${
+    <div className={`border p-4 rounded-md transition-all duration-200 relative ${ 
       isDisagreement 
         ? 'border-red-200 bg-red-50' 
         : readonly 
@@ -122,7 +131,7 @@ function ParameterBox({ param, readonly, isDisagreement, onStatusChange }) {
         
         <div className="bg-blue-50 p-2 rounded">
           <div className="text-xs text-gray-500 mb-1 flex items-center">
-            Annotator's Answer
+            Annotators Answer
             <FiInfo className="ml-1" size={14} />
           </div>
           <div className="text-sm font-medium">

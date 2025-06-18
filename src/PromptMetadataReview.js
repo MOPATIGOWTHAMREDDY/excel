@@ -60,43 +60,53 @@ function PromptMetadataReview({ prompt, updateReviewedPrompt }) {
   };
 
   const handleSave = () => {
-    let valid = true;
+  let valid = true;
 
-    for (const field of metadataFields) {
-      const annotatorDecision = prompt[`${field}_a_a`];
-      const isDisagree = annotatorDecision === 'dis';
-      const decision = decisions[field]?.decision || 'agree';
-      const comment = decisions[field]?.comment || '';
+  for (const field of metadataFields) {
+    const annotatorDecision = prompt[`${field}_a_a`];
+    const isDisagree = annotatorDecision === 'dis';
+    const decision = decisions[field]?.decision || 'agree';
+    const comment = decisions[field]?.comment || '';
 
-      if (isDisagree && decision === 'revert' && comment.trim() === '') {
-        valid = false;
-        break;
-      }
-
-      prompt[`${field}_review_decision`] = decision;
-      prompt[`${field}_review_comment`] = comment;
+    if (isDisagree && decision === 'revert' && comment.trim() === '') {
+      valid = false;
+      break;
     }
 
-    if (!valid) {
-      alert('Please add a comment for all reverted metadata fields.');
-      return;
-    }
+    prompt[`${field}_review_decision`] = decision;
+    prompt[`${field}_review_comment`] = comment;
+  }
 
-    prompt.metadataReviewed = true;
+  if (!valid) {
+    alert('Please add a comment for all reverted metadata fields.');
+    return;
+  }
 
-    if (prompt.metadataReviewed && prompt.goalsReviewed) {
+  prompt.metadataReviewed = true;
+
+  const hasGoalDisagreements = (prompt.parameters || []).some(param => param.annotatorAnswer === 'dis');
+  
+  if (hasGoalDisagreements) {
+    if (prompt.goalsReviewed) {
       prompt.reviewed = true;
     }
+  } else {
+    prompt.reviewed = true;
+  }
 
-    updateReviewedPrompt?.(prompt); // ✅ Save to shared state
+  updateReviewedPrompt?.(prompt);
 
-    setShowSaved(true);
-    setTimeout(() => setShowSaved(false), 2000);
-  };
+  setShowSaved(true);
+  setTimeout(() => setShowSaved(false), 2000);
+};
 
   const renderItem = (field) => {
     const annotatorDecision = prompt[`${field}_a_a`];
     const annotatorSuggestion = prompt[`${field}_u_a`];
+
+    if(annotatorDecision === 'dis'){
+      console.log(`found meta disagreement : ${field}_a_a = ${annotatorDecision}`)
+    }
 
     if (!annotatorDecision && !annotatorSuggestion) return null;
 
