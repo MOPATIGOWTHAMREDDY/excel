@@ -128,52 +128,61 @@ function getGoals(prompt) {
     'qc',
   ];
 
-const goalKeys = Object.keys(prompt).filter((key) => {
-  // Must start with 'goal_'
-  if (!key.startsWith('goal_')) return false;
-  
-  // Exclude patterns
-  if (excludedPatterns.some((pattern) => key.includes(pattern))) return false;
-  
-  // Only match main goals like goal_1, goal_2, NOT goal_1_accuracy
-  const goalMainPattern = /^goal_\d+$/;
-  return goalMainPattern.test(key);
-});
-
-  const goals = goalKeys.map((key) => {
-    const goalNameParts = key.split('_');
-    const goalIndex = goalNameParts[1];
-
-    const parameters = Object.entries(prompt)
-      .filter(([paramKey]) =>
-        paramKey.startsWith(`${key}_`) &&
-        !paramKey.includes(`${key}_task_`)
-      )
-      .map(([paramKey, userAnswer]) => {
-        const paramBase = paramKey.replace(`${key}_`, '');
-        const annotatorAnswer = prompt[`g_${goalIndex}_${paramBase}_a_a`];
-        const annotatorValue = prompt[`g_${goalIndex}_${paramBase}_u_a`];
-
-        const existingParam = prompt.parameters?.find(p => p.fullKey === paramKey);
-        
-        return existingParam || {
-          name: paramBase,
-          userAnswer,
-          annotatorAnswer,
-          annotatorValue,
-          fullKey: paramKey,
-          revertComment: '',
-          status: annotatorAnswer === 'dis' ? 'disagree' : 'agree',
-        };
-      });
-
-    return {
-      name: key,
-      description: prompt[key],
-      parameters,
-      __promptRef: prompt,
-    };
+  const goalKeys = Object.keys(prompt).filter((key) => {
+    // Must start with 'goal_'
+    if (!key.startsWith('goal_')) return false;
+    
+    // Exclude patterns
+    if (excludedPatterns.some((pattern) => key.includes(pattern))) return false;
+    
+    // Fixed regex to match goal_1, goal_2, ... goal_10, goal_11, etc.
+    const goalMainPattern = /^goal_\d+$/;
+    return goalMainPattern.test(key);
   });
+
+  const goals = goalKeys
+    .map((key) => {
+      const goalNameParts = key.split('_');
+      const goalIndex = goalNameParts[1];
+      const description = prompt[key];
+
+      // Skip goals without meaningful descriptions
+      if (!description || description.trim() === '') {
+        return null;
+      }
+
+      const parameters = Object.entries(prompt)
+        .filter(([paramKey]) =>
+          paramKey.startsWith(`${key}_`) &&
+          !paramKey.includes(`${key}_task_`) &&
+          !paramKey.endsWith('_gold') // Filter out parameters ending with _gold
+        )
+        .map(([paramKey, userAnswer]) => {
+          const paramBase = paramKey.replace(`${key}_`, '');
+          const annotatorAnswer = prompt[`g_${goalIndex}_${paramBase}_a_a`];
+          const annotatorValue = prompt[`g_${goalIndex}_${paramBase}_u_a`];
+
+          const existingParam = prompt.parameters?.find(p => p.fullKey === paramKey);
+          
+          return existingParam || {
+            name: paramBase,
+            userAnswer,
+            annotatorAnswer,
+            annotatorValue,
+            fullKey: paramKey,
+            revertComment: '',
+            status: annotatorAnswer === 'dis' ? 'disagree' : 'agree',
+          };
+        });
+
+      return {
+        name: key,
+        description: description,
+        parameters,
+        __promptRef: prompt,
+      };
+    })
+    .filter(goal => goal !== null); // Remove null entries (goals without descriptions)
 
   return goals;
 }

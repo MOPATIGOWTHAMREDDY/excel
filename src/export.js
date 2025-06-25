@@ -1,63 +1,5 @@
 import * as XLSX from 'xlsx';
 
-export const debugAgentAssertionKeys = (prompts) => {
-  const reviewedPrompts = prompts.filter(p => p.reviewed === true);
-  
-  reviewedPrompts.forEach((prompt, index) => {
-    console.log(`\n=== Prompt ${prompt._unit_id} Agent Assertion Keys ===`);
-    
-    // Find all agent assertion keys
-    const agentKeys = Object.keys(prompt).filter(key => 
-      key.startsWith('agent_side_assertion_') || key.includes('agent_side_assertion')
-    );
-    
-    console.log('All agent assertion keys:', agentKeys);
-    
-    // Show which ones have disagree status
-    const disagreeKeys = agentKeys.filter(key => 
-      key.endsWith('_status') && prompt[key] === 'disagree'
-    );
-    
-    console.log('Disagree status keys:', disagreeKeys);
-    
-    // For each disagree, show corresponding comment key
-    disagreeKeys.forEach(statusKey => {
-      const baseKey = statusKey.replace('_status', '');
-      const commentKey = `${baseKey}_comment`;
-      console.log(`Status: ${statusKey} = ${prompt[statusKey]}`);
-      console.log(`Comment: ${commentKey} = ${prompt[commentKey]}`);
-    });
-  });
-};
-
-export const debugDisagreements = (prompts) => {
-  console.log('=== DEBUGGING DISAGREEMENTS ===');
-  
-  const reviewedPrompts = prompts.filter(p => p.reviewed === true);
-  console.log('Total reviewed prompts:', reviewedPrompts.length);
-  
-  reviewedPrompts.forEach((prompt, index) => {
-    console.log(`\n--- Prompt ${index + 1} (${prompt._unit_id}) ---`);
-    
-    // Debug background info fields
-    console.log('Background info flattened fields:');
-    Object.keys(prompt).filter(k => k.startsWith('u_b_i_')).forEach(key => {
-      console.log(`  ${key}: ${prompt[key]}`);
-    });
-    
-    // Debug assertion fields
-    console.log('User assertion flattened fields:');
-    Object.keys(prompt).filter(k => k.startsWith('user_side_assertion_')).forEach(key => {
-      console.log(`  ${key}: ${prompt[key]}`);
-    });
-    
-    console.log('Agent assertion flattened fields:');
-    Object.keys(prompt).filter(k => k.startsWith('agent_side_assertion_')).forEach(key => {
-      console.log(`  ${key}: ${prompt[key]}`);
-    });
-  });
-};
-
 export const exportReviewed = (prompts, options = {}) => {
   const config = {
     includeAllGoals: false,
@@ -140,10 +82,10 @@ export const exportReviewed = (prompts, options = {}) => {
         disagreementRows.push({
           unit_id: unitId,
           worker_id: workerId,
-          field_type: 'goal_parameter',
-          goal_name: goalName + ': ' + goalDescription,
-          field_name: param.name,
-          original_value: param.userAnswer || '',
+          category: 'goal_parameter',
+          'Sub category': goalName + ': ' + goalDescription,
+          Parameter: param.name,
+          associate_value: param.userAnswer || '',
           annotator_value: param.annotatorValue || '',
           annotator_decision: param.annotatorAnswer || 'dis',
           reviewer_decision: param.status || 'not_reviewed',
@@ -153,7 +95,7 @@ export const exportReviewed = (prompts, options = {}) => {
       });
     }
 
-    // Process User Side Assertions
+    // Process User Side Assertions - FIXED TO GET PROPER VALUES
     const usaStatusKeys = Object.keys(prompt).filter(key => 
       key.startsWith('user_side_assertion_') && key.endsWith('_status')
     );
@@ -161,7 +103,7 @@ export const exportReviewed = (prompts, options = {}) => {
     usaStatusKeys.forEach(statusKey => {
       const status = prompt[statusKey];
       if (status === 'disagree') {
-        const baseKey = statusKey.replace('_status', '');
+        const baseKey = statusKey.replace('_status', ''); // e.g., user_side_assertion_1_contains_error
         const commentKey = `${baseKey}_comment`;
         const comment = prompt[commentKey] || '';
         
@@ -170,28 +112,31 @@ export const exportReviewed = (prompts, options = {}) => {
         const assertionNumber = keyMatch ? keyMatch[1] : 'unknown';
         const criteriaType = keyMatch ? keyMatch[2] : 'unknown';
         
-        // FIXED: Find original values from the structured data
-        let originalValue = '';
-        let annotatorValue = '';
+        // Get the assertion TEXT/DESCRIPTION from the main assertion field
+        const assertionTextKey = `user_side_assertion_${assertionNumber}`;
+        const assertionText = prompt[assertionTextKey] || `User Assertion ${assertionNumber}`;
         
-        if (prompt.userAssertions && Array.isArray(prompt.userAssertions)) {
-          const assertion = prompt.userAssertions.find(a => a.assertionNumber == assertionNumber);
-          if (assertion && assertion.criteria) {
-            const criteria = assertion.criteria.find(c => c.fullKey === baseKey);
-            if (criteria) {
-              originalValue = criteria.userAnswer || '';
-              annotatorValue = criteria.annotatorAnswer || '';
-            }
-          }
-        }
+        // CORRECTED: Get values from the actual field names in the data
+        // The associate value is stored directly in the baseKey field
+        const associateValue = prompt[baseKey] || ''; // e.g., prompt['user_side_assertion_1_contains_error']
+        
+        // The annotator answer uses _a_a suffix (not _u_a)
+        const annotatorAnswerKey = `${baseKey}_a_a`;
+        const annotatorValue = prompt[annotatorAnswerKey] || '';
+        
+        console.log(`USA Processing: ${baseKey}`);
+        console.log(`Assertion text: ${assertionText}`);
+        console.log(`Criteria: ${criteriaType}`);
+        console.log(`Associate value (${baseKey}): ${associateValue}`);
+        console.log(`Annotator value (${annotatorAnswerKey}): ${annotatorValue}`);
         
         disagreementRows.push({
           unit_id: unitId,
           worker_id: workerId,
-          field_type: 'user_assertion',
-          goal_name: `User Assertion ${assertionNumber}`,
-          field_name: criteriaType.replace(/_/g, ' '),
-          original_value: originalValue,
+          category: 'user_assertion',
+          'Sub category': assertionText, // The actual assertion description/text
+          Parameter: criteriaType.replace(/_/g, ' '), // The criteria like "contains error"
+          associate_value: associateValue,
           annotator_value: annotatorValue,
           annotator_decision: 'dis',
           reviewer_decision: status,
@@ -201,7 +146,7 @@ export const exportReviewed = (prompts, options = {}) => {
       }
     });
 
-    // Process Agent Side Assertions
+    // Process Agent Side Assertions - FIXED TO GET PROPER VALUES
     const asaStatusKeys = Object.keys(prompt).filter(key => 
       key.startsWith('agent_side_assertion_') && key.endsWith('_status')
     );
@@ -209,39 +154,40 @@ export const exportReviewed = (prompts, options = {}) => {
     asaStatusKeys.forEach(statusKey => {
       const status = prompt[statusKey];
       if (status === 'disagree') {
-        const baseKey = statusKey.replace('_status', '');
+        const baseKey = statusKey.replace('_status', ''); // e.g., agent_side_assertion_1_contains_error
         const commentKey = `${baseKey}_comment`;
         const comment = prompt[commentKey] || '';
-        
-        console.log(`Processing ASA: ${statusKey}, Comment key: ${commentKey}, Comment: "${comment}"`);
         
         // Extract assertion number and criteria type
         const keyMatch = baseKey.match(/agent_side_assertion_(\d+)_(.+)/);
         const assertionNumber = keyMatch ? keyMatch[1] : 'unknown';
         const criteriaType = keyMatch ? keyMatch[2] : 'unknown';
         
-        // FIXED: Find original values from the structured data
-        let originalValue = '';
-        let annotatorValue = '';
+        // Get the assertion TEXT/DESCRIPTION from the main assertion field
+        const assertionTextKey = `agent_side_assertion_${assertionNumber}`;
+        const assertionText = prompt[assertionTextKey] || `Agent Assertion ${assertionNumber}`;
         
-        if (prompt.annotatorAssertions && Array.isArray(prompt.annotatorAssertions)) {
-          const assertion = prompt.annotatorAssertions.find(a => a.assertionNumber == assertionNumber);
-          if (assertion && assertion.criteria) {
-            const criteria = assertion.criteria.find(c => c.fullKey === baseKey);
-            if (criteria) {
-              originalValue = criteria.userAnswer || '';
-              annotatorValue = criteria.annotatorAnswer || '';
-            }
-          }
-        }
+        // CORRECTED: Get values from the actual field names in the data
+        // The associate value is stored directly in the baseKey field
+        const associateValue = prompt[baseKey] || ''; // e.g., prompt['agent_side_assertion_1_contains_error']
+        
+        // The annotator answer uses _a_a suffix (not _u_a)
+        const annotatorAnswerKey = `${baseKey}_a_a`;
+        const annotatorValue = prompt[annotatorAnswerKey] || '';
+        
+        console.log(`ASA Processing: ${baseKey}`);
+        console.log(`Assertion text: ${assertionText}`);
+        console.log(`Criteria: ${criteriaType}`);
+        console.log(`Associate value (${baseKey}): ${associateValue}`);
+        console.log(`Annotator value (${annotatorAnswerKey}): ${annotatorValue}`);
         
         disagreementRows.push({
           unit_id: unitId,
           worker_id: workerId,
-          field_type: 'agent_assertion',
-          goal_name: `Agent Assertion ${assertionNumber}`,
-          field_name: criteriaType.replace(/_/g, ' '),
-          original_value: originalValue,
+          category: 'agent_assertion',
+          'Sub category': assertionText, // The actual assertion description/text
+          Parameter: criteriaType.replace(/_/g, ' '), // The criteria like "contains error"
+          associate_value: associateValue,
           annotator_value: annotatorValue,
           annotator_decision: 'dis',
           reviewer_decision: status,
@@ -253,44 +199,38 @@ export const exportReviewed = (prompts, options = {}) => {
 
     // Process metadata disagreements
     const metaDisagreements = Object.keys(prompt).filter(
-  k => k.endsWith('_a_a') && !k.startsWith('g_') && !k.startsWith('u_b_i_') && !k.startsWith('usa_') && !k.startsWith('asa_') && prompt[k] === 'dis'
-);
+      k => k.endsWith('_a_a') && !k.startsWith('g_') && !k.startsWith('u_b_i_') && !k.startsWith('user_side_assertion_') && !k.startsWith('agent_side_assertion_') && prompt[k] === 'dis'
+    );
 
-metaDisagreements.forEach(key => {
-  const fieldName = key.replace('_a_a', '');
-  const originalValue = prompt[fieldName] || '';
-  
-  // FIXED: Look for annotator answer and review status/comment with correct field names
-  const annotatorAnswerKey = key.replace('_a_a', '_u_a');
-  // CHANGED: Use the correct field names that match your React component
-  const reviewDecisionKey = fieldName + '_review_decision';
-  const reviewCommentKey = fieldName + '_review_comment';
-  
-  const annotatorValue = prompt[annotatorAnswerKey] || '';
-  const reviewerDecision = prompt[reviewDecisionKey] || 'not_reviewed';
-  const reviewerComment = prompt[reviewCommentKey] || '';
-  
-  console.log(`Metadata field: ${fieldName}`);
-  console.log(`Review decision key: ${reviewDecisionKey} = "${reviewerDecision}"`);
-  console.log(`Review comment key: ${reviewCommentKey} = "${reviewerComment}"`);
-  
-  disagreementRows.push({
-    unit_id: unitId,
-    worker_id: workerId,
-    field_type: 'metadata',
-    goal_name: 'N/A',
-    field_name: fieldName,
-    original_value: originalValue,
-    annotator_value: annotatorValue,
-    annotator_decision: 'dis',
-    reviewer_decision: reviewerDecision,
-    reviewer_comment: reviewerComment,
-    is_resolved: reviewerDecision !== 'not_reviewed'
-  });
-});
+    metaDisagreements.forEach(key => {
+      const fieldName = key.replace('_a_a', '');
+      const associateValue = prompt[fieldName] || '';
+      
+      // Look for annotator answer and review status/comment with correct field names
+      const annotatorAnswerKey = key.replace('_a_a', '_u_a');
+      const reviewDecisionKey = fieldName + '_review_decision';
+      const reviewCommentKey = fieldName + '_review_comment';
+      
+      const annotatorValue = prompt[annotatorAnswerKey] || '';
+      const reviewerDecision = prompt[reviewDecisionKey] || 'not_reviewed';
+      const reviewerComment = prompt[reviewCommentKey] || '';
+      
+      disagreementRows.push({
+        unit_id: unitId,
+        worker_id: workerId,
+        category: 'metadata',
+        'Sub category': fieldName,
+        Parameter: fieldName,
+        associate_value: associateValue,
+        annotator_value: annotatorValue,
+        annotator_decision: 'dis',
+        reviewer_decision: reviewerDecision,
+        reviewer_comment: reviewerComment,
+        is_resolved: reviewerDecision !== 'not_reviewed'
+      });
+    });
 
     // Process background info disagreements
-    
     const backgroundDisagreements = Object.keys(prompt).filter(
       k => k.startsWith('u_b_i_') && k.endsWith('_a_a') && prompt[k] === 'dis'
     );
@@ -298,33 +238,28 @@ metaDisagreements.forEach(key => {
     backgroundDisagreements.forEach(key => {
       const fieldName = key.replace('_a_a', '');
       
-      // FIXED: Get original field name for background info
+      // Get original field name for background info
       const originalFieldName = fieldName.replace('u_b_i_', 'user_background_information_');
-      const originalValue = prompt[originalFieldName] || '';
+      const associateValue = prompt[originalFieldName] || prompt[fieldName] || '';
       
-      // FIXED: Get annotator answer
+      // Get annotator answer
       const annotatorAnswerKey = key.replace('_a_a', '_u_a');
       const annotatorValue = prompt[annotatorAnswerKey] || '';
       
-      // FIXED: Get reviewer decision and comment using correct field names
+      // Get reviewer decision and comment using correct field names
       const statusKey = `${fieldName}_status`;
       const commentKey = `${fieldName}_comment`;
       
       const reviewerDecision = prompt[statusKey] || 'not_reviewed';
       const reviewerComment = prompt[commentKey] || '';
       
-      console.log(`Background field: ${fieldName}`);
-      console.log(`Original field: ${originalFieldName} = "${originalValue}"`);
-      console.log(`Status key: ${statusKey} = "${reviewerDecision}"`);
-      console.log(`Comment key: ${commentKey} = "${reviewerComment}"`);
-      
       disagreementRows.push({
         unit_id: unitId,
         worker_id: workerId,
-        field_type: 'background_info',
-        goal_name: 'N/A',
-        field_name: fieldName.replace('u_b_i_', '').replace(/_/g, ' '),
-        original_value: originalValue,
+        category: 'background_info',
+        'Sub category': originalFieldName,
+        Parameter: originalFieldName,
+        associate_value: associateValue,
         annotator_value: annotatorValue,
         annotator_decision: 'dis',
         reviewer_decision: reviewerDecision,
@@ -340,20 +275,7 @@ metaDisagreements.forEach(key => {
   }
 
   console.log(`Exporting ${disagreementRows.length} disagreement rows`);
-
-  console.log('Row types breakdown:', disagreementRows.reduce((acc, row) => {
-  acc[row.field_type] = (acc[row.field_type] || 0) + 1;
-  return acc;
-}, {}));
-
-  console.log('Sample row:', disagreementRows[0]);
-
-  const backgroundRow = disagreementRows.find(row => row.field_type === 'background_info');
-if (backgroundRow) {
-  console.log('Background info sample row:', backgroundRow);
-} else {
-  console.log('No background info rows found');
-}
+  console.log('Sample assertion rows:', disagreementRows.filter(r => r.category.includes('assertion')));
 
   // Create workbook
   const workbook = XLSX.utils.book_new();
@@ -363,11 +285,11 @@ if (backgroundRow) {
   const colWidths = [
     { wch: 15 }, // unit_id
     { wch: 15 }, // worker_id
-    { wch: 18 }, // field_type
-    { wch: 30 }, // goal_name
-    { wch: 25 }, // field_name
-    { wch: 20 }, // original_value
-    { wch: 20 }, // annotator_value
+    { wch: 18 }, // category
+    { wch: 50 }, // Sub category (assertion text)
+    { wch: 25 }, // Parameter (criteria type)
+    { wch: 15 }, // associate_value
+    { wch: 15 }, // annotator_value
     { wch: 18 }, // annotator_decision
     { wch: 18 }, // reviewer_decision
     { wch: 40 }, // reviewer_comment
@@ -388,3 +310,58 @@ if (backgroundRow) {
     alert('Export failed: ' + error.message);
   }
 };
+
+
+// Enhanced debug function to show the actual field structure
+export const debugAssertionFields = (prompts) => {
+  const reviewedPrompts = prompts.filter(p => p.reviewed === true);
+  
+  reviewedPrompts.slice(0, 1).forEach((prompt, index) => {
+    console.log(`\n=== Prompt ${prompt._unit_id} Assertion Fields Debug ===`);
+    
+    // Show ALL fields that contain "assertion" to see the full structure
+    const allAssertionFields = Object.keys(prompt).filter(key => 
+      key.includes('assertion')
+    ).sort();
+    
+    console.log('\nALL assertion-related fields:');
+    allAssertionFields.forEach(field => {
+      const value = prompt[field];
+      console.log(`${field}: "${value}"`);
+    });
+    
+    // Focus on specific patterns
+    console.log('\n=== Pattern Analysis ===');
+    
+    // Check for different annotator answer patterns
+    const possibleAnnotatorPatterns = [
+      '_a_a',
+      '_annotator_answer', 
+      '_ann_answer',
+      '_a_answer',
+      '_annotator',
+      '_ann'
+    ];
+    
+    possibleAnnotatorPatterns.forEach(pattern => {
+      const matchingFields = Object.keys(prompt).filter(key => 
+        key.includes('assertion') && key.includes(pattern)
+      );
+      if (matchingFields.length > 0) {
+        console.log(`\nFields with pattern "${pattern}":`);
+        matchingFields.forEach(field => {
+          console.log(`  ${field}: "${prompt[field]}"`);
+        });
+      }
+    });
+    
+    // Show goal parameter structure for comparison
+    console.log('\n=== Goal Parameter Structure (for comparison) ===');
+    if (prompt.parameters && prompt.parameters.length > 0) {
+      console.log('Sample parameter object:');
+      console.log(JSON.stringify(prompt.parameters[0], null, 2));
+    }
+  });
+};
+
+// Enhanced debug function to show the actual field structure
